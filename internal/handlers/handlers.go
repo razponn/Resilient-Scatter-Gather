@@ -1,9 +1,17 @@
 package handlers
 
-// Handlers — контейнер для HTTP-хендлеров.
-// Позже сюда добавим зависимости (клиенты сервисов), чтобы хендлер собирал ответ.
-type Handlers struct{}
+import "github.com/razponn/Resilient-Scatter-Gather/internal/clients"
 
-func New() *Handlers {
-	return &Handlers{}
+type Handlers struct {
+	users clients.UserService
+	perms clients.PermissionsService
+	vm    clients.VectorMemory
+}
+
+func New(users clients.UserService, perms clients.PermissionsService, vm clients.VectorMemory) *Handlers {
+	return &Handlers{
+		users: users,
+		perms: perms,
+		vm:    vm,
+	}
 }

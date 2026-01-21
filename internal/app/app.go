@@ -2,8 +2,10 @@ package app
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/razponn/Resilient-Scatter-Gather/internal/handlers"
+	"github.com/razponn/Resilient-Scatter-Gather/internal/mocks"
 )
 
 type App struct {
@@ -19,8 +21,23 @@ func New() *App {
 		_, _ = w.Write([]byte("ок\n"))
 	})
 
+	// Моки сервисов (поведение по умолчанию близко к ТЗ)
+	usersMock := mocks.UserServiceMock{
+		Delay: 10 * time.Millisecond,
+		Fail:  false,
+	}
+	permsMock := mocks.PermissionsServiceMock{
+		Delay:   50 * time.Millisecond,
+		Fail:    false,
+		Allowed: true,
+	}
+	vmMock := mocks.VectorMemoryMock{
+		Delay: 100 * time.Millisecond,
+		Fail:  false,
+	}
+
 	// API: сводка по чату
-	h := handlers.New()
+	h := handlers.New(usersMock, permsMock, vmMock)
 	mux.HandleFunc("/chat/summary", h.ChatSummary)
 
 	return &App{mux: mux}
