@@ -30,11 +30,10 @@ func (h *Handlers) ChatSummary(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 200*time.Millisecond)
 	defer cancel()
 
-	// Для простоты берём user_id и chat_id из query:
+	// Параметры запроса:
 	// /chat/summary?user_id=1&chat_id=42
 	userID := r.URL.Query().Get("user_id")
 	chatID := r.URL.Query().Get("chat_id")
-
 	if userID == "" || chatID == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]any{
 			"ошибка": "нужны параметры user_id и chat_id",
@@ -141,11 +140,11 @@ func (h *Handlers) ChatSummary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Некритичный результат (VectorMemory): не блокируем ответ.
-	// Если уже успел — берём. Если нет/ошибка — деградация.
+	// Некритичный VectorMemory: ждём до дедлайна, но не дольше.
+	// Если не успел/ошибка — деградация, но ответ всё равно 200 OK.
 	var (
 		contextData *models.VectorContext
-		degraded    bool
+		degraded    = true
 	)
 
 	select {
@@ -157,8 +156,8 @@ func (h *Handlers) ChatSummary(w http.ResponseWriter, r *http.Request) {
 		} else {
 			degraded = true
 		}
-	default:
-		// VectorMemory ещё не успел — деградация
+	case <-ctx.Done():
+		// Не успел до 200мс — деградация
 		degraded = true
 	}
 
