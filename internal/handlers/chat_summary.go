@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/razponn/Resilient-Scatter-Gather/internal/mocks"
 	"github.com/razponn/Resilient-Scatter-Gather/internal/models"
 )
 
@@ -41,23 +42,67 @@ func (h *Handlers) ChatSummary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Локальные "клиенты" на один запрос.
+	// Если в query пришли параметры, то (только для моков) делаем копию и переопределяем Delay/Fail.
+	usersClient := h.users
+	permsClient := h.perms
+	vmClient := h.vm
+
+	q := r.URL.Query()
+
+	// user_delay, user_fail
+	if base, ok := h.users.(mocks.UserServiceMock); ok {
+		if d, ok := parseDuration(q.Get("user_delay")); ok {
+			base.Delay = d
+		}
+		if b, ok := parseBool(q.Get("user_fail")); ok {
+			base.Fail = b
+		}
+		usersClient = base
+	}
+
+	// perms_delay, perms_fail, perms_allowed
+	if base, ok := h.perms.(mocks.PermissionsServiceMock); ok {
+		if d, ok := parseDuration(q.Get("perms_delay")); ok {
+			base.Delay = d
+		}
+		if b, ok := parseBool(q.Get("perms_fail")); ok {
+			base.Fail = b
+		}
+		if b, ok := parseBool(q.Get("perms_allowed")); ok {
+			base.Allowed = b
+		}
+		permsClient = base
+	}
+
+	// vm_delay, vm_fail
+	if base, ok := h.vm.(mocks.VectorMemoryMock); ok {
+		if d, ok := parseDuration(q.Get("vm_delay")); ok {
+			base.Delay = d
+		}
+		if b, ok := parseBool(q.Get("vm_fail")); ok {
+			base.Fail = b
+		}
+		vmClient = base
+	}
+
 	// Fan-out: запускаем 3 запроса параллельно
 	userCh := make(chan userResult, 1)
 	permsCh := make(chan permsResult, 1)
 	vmCh := make(chan ctxResult, 1)
 
 	go func() {
-		u, err := h.users.GetUser(ctx, userID)
+		u, err := usersClient.GetUser(ctx, userID)
 		userCh <- userResult{user: u, err: err}
 	}()
 
 	go func() {
-		p, err := h.perms.CheckAccess(ctx, userID, chatID)
+		p, err := permsClient.CheckAccess(ctx, userID, chatID)
 		permsCh <- permsResult{perms: p, err: err}
 	}()
 
 	go func() {
-		c, err := h.vm.GetContext(ctx, chatID)
+		c, err := vmClient.GetContext(ctx, chatID)
 		vmCh <- ctxResult{ctx: c, err: err}
 	}()
 
@@ -131,4 +176,29 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
+}
+
+func parseDuration(s string) (time.Duration, bool) {
+	if s == "" {
+		return 0, false
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		return 0, false
+	}
+	return d, true
+}
+
+func parseBool(s string) (bool, bool) {
+	if s == "" {
+		return false, false
+	}
+	switch s {
+	case "1", "true", "TRUE", "yes", "YES", "y", "Y":
+		return true, true
+	case "0", "false", "FALSE", "no", "NO", "n", "N":
+		return false, true
+	default:
+		return false, false
+	}
 }
