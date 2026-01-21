@@ -32,6 +32,9 @@
 - `perms_delay=250ms` — критичный сервис не успевает, 500
 - `user_fail=1` — критичный сервис падает, 500
 
+## CI
+На каждый push/PR запускаются `go test ./...` и `go test -race ./...` (GitHub Actions).
+
 ## Запуск
 ```bash
 go run ./cmd/gateway
