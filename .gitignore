@@ -1,0 +1,15 @@
+/bin/
+/dist/
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+coverage.out
+go.work
+go.work.sum
+.vscode/
+.idea/
+.DS_Store
+
